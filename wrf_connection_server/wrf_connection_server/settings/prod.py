@@ -11,8 +11,8 @@ DATABASES = {
 }
 
 
-ALLOWED_HOSTS = ['wfr.getit.rest']
-CSRF_TRUSTED_ORIGINS = ['https://wfr.getit.rest']
+ALLOWED_HOSTS = ['wrf.getit.rest']
+CSRF_TRUSTED_ORIGINS = ['https://wrf.getit.rest']
 
 
 CHANNEL_LAYERS = {
