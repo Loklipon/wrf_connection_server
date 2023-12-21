@@ -1,4 +1,9 @@
 import os
+import django
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wrf_connection_server.settings')
+django.setup()
+
 
 import wrf_connection_server.routing
 
