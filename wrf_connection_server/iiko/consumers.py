@@ -16,7 +16,8 @@ class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
 
     async def disconnect(self, code):
         channel_name = self.channel_name
-        if terminal := await Terminal.objects.filter(channel_name=channel_name).afirst():
+        terminals = await sync_to_async(Terminal.objects.filter)(channel_name=channel_name)
+        if terminal := await sync_to_async(terminals.first)():
             terminal.channel_name = None
             terminal.plugin_online = False
             await sync_to_async(terminal.save)()
@@ -35,19 +36,20 @@ class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
             'method': 'SendMessage',
             'params': data['params']
         }
-        await WsLog.objects.acreate(correlation_id=payload['id'],
-                                    request=json.dumps(payload, ensure_ascii=False).encode('utf8').decode(),
-                                    method='TG -> SERVER -> iikoFront Plugin Message',
-                                    telegram_chat_id=data['tg_chat_id'])
+        await sync_to_async(WsLog.objects.create)(correlation_id=payload['id'],
+                                                  request=json.dumps(payload, ensure_ascii=False).encode('utf8').decode(),
+                                                  method='TG -> SERVER -> iikoFront Plugin Message',
+                                                  telegram_chat_id=data['tg_chat_id'])
         await self.send_json(json.dumps(payload))
 
     async def receive_json(self, content):
         if 'method' not in content.keys() and 'id' in content.keys():
-            if ws_log := await WsLog.objects.filter(correlation_id=content['id'],
-                                                    telegram_chat_id__isnull=False).afirst():
+            ws_logs = await sync_to_async(WsLog.objects.filter)(correlation_id=content['id'],
+                                                                telegram_chat_id__isnull=False)
+            if ws_log := await sync_to_async(ws_logs.first)():
                 ws_log.response = content
                 await sync_to_async(ws_log.save)()
-                telegram_bot_data = await TelegramBot.objects.afirst()
+                telegram_bot_data = await sync_to_async(TelegramBot.objects.first)()
                 telegram_bot = Bot(token=telegram_bot_data.token)
                 await telegram_bot.send_message(
                     chat_id=ws_log.telegram_chat_id,
@@ -60,7 +62,8 @@ class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
 @IikoFrontConsumer.rpc_method('Authentication')
 async def authentication(**kwargs):
     channel_name = kwargs['consumer'].channel_name
-    if terminal := await Terminal.objects.filter(uuid=kwargs['terminalGroupId']).afirst():
+    terminals = await sync_to_async(Terminal.objects.filter)(uuid=kwargs['terminalGroupId'])
+    if terminal := await sync_to_async(terminals.first)():
         terminal.plugin_online = True
         terminal.channel_name = channel_name
         await sync_to_async(terminal.save)()
@@ -71,19 +74,25 @@ async def authentication(**kwargs):
 @IikoFrontConsumer.rpc_method('Clients')
 async def get_clients(**kwargs):
     channel_name = kwargs['consumer'].channel_name
-    if terminal := await Terminal.objects.filter(channel_name=channel_name).afirst():
-        if organization_unit := await OrganizationUnit.objects.filter(terminal=terminal).afirst():
-            data_clients = kwargs['clients']
-            for data_client in data_clients:
-                client, _ = await Client.objects.aupdate_or_create(
-                    uuid=data_client['id'],
-                    defaults={'name': data_client['fio'], 'organization_unit': organization_unit})
-                phones = data_client['phones']
-                for phone in phones:
-                    await ClientPhone.objects.aupdate_or_create(phone_number=phone, defaults={'client': client})
-            return 'OK'
+    terminals = await sync_to_async(Terminal.objects.filter)(channel_name=channel_name)
+    terminal = await sync_to_async(terminals.first)()
+    if not terminal:
         return 'ERROR'
-    return 'ERROR'
+    organization_units = await sync_to_async(OrganizationUnit.objects.filter)(terminal=terminal)
+    organization_unit = await sync_to_async(organization_units.first)()
+    if not organization_unit:
+        return 'ERROR'
+    data_clients = kwargs['clients']
+    for data_client in data_clients:
+        client, _ = await sync_to_async(Client.objects.update_or_create)(
+            uuid=data_client['id'],
+            defaults={'name': data_client['fio'],
+                      'organization_unit': organization_unit})
+        phones = data_client['phones']
+        for phone in phones:
+            await sync_to_async(ClientPhone.objects.update_or_create)(phone_number=phone,
+                                                                      defaults={'client': client})
+    return 'OK'
 
 
 def sending_message(channel_name, message):
