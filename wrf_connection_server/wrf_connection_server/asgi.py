@@ -5,13 +5,11 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wrf_connection_server.settings'
 django.setup()
 
 
-import wrf_connection_server.routing
-
+from django.core.asgi import get_asgi_application
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
-from django.core.asgi import get_asgi_application
+import wrf_connection_server.routing
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wrf_connection_server.settings')
 
 application = ProtocolTypeRouter({
     'http': get_asgi_application(),
