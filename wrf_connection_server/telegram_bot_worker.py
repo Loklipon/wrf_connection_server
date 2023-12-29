@@ -70,7 +70,7 @@ async def send_message_to_iiko_front(client_contact, message):
 
 
 async def check_contact_authentication(message):
-    phone_number = f'+{message.contact.phone_number}'
+    phone_number = f'{message.contact.phone_number}'
 
     client_phones = await sync_to_async(ClientPhone.objects.filter)(phone_number=phone_number,
                                                                     telegram_chat_id__isnull=True)
@@ -92,14 +92,15 @@ async def check_contact_authentication(message):
 
 @dp.message()
 async def get_message(message: Message):
-
+    print(1)
     if isinstance(message.contact, Contact):
         await check_contact_authentication(message)
         return
-
+    print(2)
     client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
                                                                     client__send_message=True)
     client_phone = await sync_to_async(client_phones.first)()
+    print(f'{client_phone=}')
     if not client_phone:
         await message.answer('Доступ запрещен')
         return
@@ -108,13 +109,17 @@ async def get_message(message: Message):
                                                                       client__send_message=True,
                                                                       terminal_to_send__isnull=False)
     client_contact = await sync_to_async(client_contacts.first)()
+    print(f'{client_contact=}')
     if client_contact:
+        print('send_message_to_iiko_front')
         await send_message_to_iiko_front(client_contact, message)
     else:
         organization_unit = await OrganizationUnit.objects.filter(
             client__phone__telegram_chat_id=message.chat.id).afirst()
         split_terminals_list = json.loads(organization_unit.terminals_name_list)
+        print(f'{split_terminals_list=}')
         terminals_dict = json.loads(organization_unit.terminals_dict)
+        print(f'{terminals_dict=}')
         keyboard = create_terminals_keyboard(split_terminals_list,
                                              terminals_dict)
         await message.answer('Выберите, куда вы хотели бы написать',

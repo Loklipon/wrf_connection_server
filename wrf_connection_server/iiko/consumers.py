@@ -40,7 +40,7 @@ class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
                                                   request=json.dumps(payload, ensure_ascii=False).encode('utf8').decode(),
                                                   method='TG -> SERVER -> iikoFront Plugin Message',
                                                   telegram_chat_id=data['tg_chat_id'])
-        await self.send_json(json.dumps(payload))
+        await self.send_json(payload)
 
     async def receive_json(self, content):
         if 'method' not in content.keys() and 'id' in content.keys():
