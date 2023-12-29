@@ -35,7 +35,7 @@ def create_contact_keyboard():
 
 
 def create_send_message_keyboard():
-    buttons = [[KeyboardButton(text='Отправить сообщение', request_contact=True)]]
+    buttons = [[KeyboardButton(text='Отправить сообщение')]]
     keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     return keyboard
 
