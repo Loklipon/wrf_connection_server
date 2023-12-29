@@ -104,9 +104,7 @@ async def get_message(message: Message):
             client__phone__telegram_chat_id=message.chat.id)
         organization_unit = await sync_to_async(qs.first)()
         split_terminals_list = json.loads(organization_unit.terminals_name_list)
-        print(f'{split_terminals_list=}')
         terminals_dict = json.loads(organization_unit.terminals_dict)
-        print(f'{terminals_dict=}')
         keyboard = create_terminals_keyboard(split_terminals_list,
                                              terminals_dict)
         await message.answer('Выберите, куда вы хотели бы написать',
@@ -134,6 +132,7 @@ async def get_message(message: Message):
             print(e)
             client_contact.terminal_to_send = None
             await sync_to_async(client_contact.save)()
+            await message.answer('Ты хуйню написал')
 
 
 @dp.callback_query()
