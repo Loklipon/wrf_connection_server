@@ -92,15 +92,12 @@ async def check_contact_authentication(message):
 
 @dp.message()
 async def get_message(message: Message):
-    print(1)
     if isinstance(message.contact, Contact):
         await check_contact_authentication(message)
         return
-    print(2)
     client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
                                                                     client__send_message=True)
     client_phone = await sync_to_async(client_phones.first)()
-    print(f'{client_phone.id=}' if client_phone else 'client_contact is none')
     if not client_phone:
         await message.answer('Доступ запрещен')
         return
@@ -109,10 +106,14 @@ async def get_message(message: Message):
                                                                       client__send_message=True,
                                                                       terminal_to_send__isnull=False)
     client_contact = await sync_to_async(client_contacts.first)()
-    print(f'{client_contact.id=}' if client_contact else 'client_contact is none')
     if client_contact:
         print('send_message_to_iiko_front')
-        await send_message_to_iiko_front(client_contact, message)
+        try:
+            await send_message_to_iiko_front(client_contact, message)
+        except Exception as e:
+            print(e)
+            client_contact.terminal_to_send = None
+            await sync_to_async(client_contact.save)()
     else:
         qs = await sync_to_async(OrganizationUnit.objects.filter)(
             client__phone__telegram_chat_id=message.chat.id)

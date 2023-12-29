@@ -32,5 +32,7 @@ class ClientPhone(models.Model):
 
     client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='phone', verbose_name='Сотрудник')
     phone_number = models.CharField(max_length=200, verbose_name='Номер телефона сотрудника')
-    telegram_chat_id = models.CharField(max_length=200, null=True, verbose_name='Telegram chat ID')
-    terminal_to_send = models.CharField(max_length=200, null=True, verbose_name='UUID терминала для отправки сообщения')
+    telegram_chat_id = models.CharField(max_length=200, null=True, blank=True,
+                                        verbose_name='Telegram chat ID')
+    terminal_to_send = models.CharField(max_length=200, null=True, blank=True,
+                                        verbose_name='UUID терминала для отправки сообщения')
