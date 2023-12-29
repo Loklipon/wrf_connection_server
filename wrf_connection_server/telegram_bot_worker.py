@@ -100,7 +100,7 @@ async def get_message(message: Message):
     client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
                                                                     client__send_message=True)
     client_phone = await sync_to_async(client_phones.first)()
-    print(f'{client_phone=}')
+    print(f'{client_phone.id=}' if client_phone else 'client_contact is none')
     if not client_phone:
         await message.answer('Доступ запрещен')
         return
@@ -109,13 +109,14 @@ async def get_message(message: Message):
                                                                       client__send_message=True,
                                                                       terminal_to_send__isnull=False)
     client_contact = await sync_to_async(client_contacts.first)()
-    print(f'{client_contact=}')
+    print(f'{client_contact.id=}' if client_contact else 'client_contact is none')
     if client_contact:
         print('send_message_to_iiko_front')
         await send_message_to_iiko_front(client_contact, message)
     else:
-        organization_unit = await OrganizationUnit.objects.filter(
+        qs = await sync_to_async(OrganizationUnit.objects.filter)(
             client__phone__telegram_chat_id=message.chat.id).afirst()
+        organization_unit = await sync_to_async(qs.first)()
         split_terminals_list = json.loads(organization_unit.terminals_name_list)
         print(f'{split_terminals_list=}')
         terminals_dict = json.loads(organization_unit.terminals_dict)
