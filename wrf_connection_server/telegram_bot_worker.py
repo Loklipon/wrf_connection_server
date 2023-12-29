@@ -76,6 +76,8 @@ async def send_message_to_iiko_front(client_contact, message):
 
 
 async def check_contact_authentication(message):
+    print('check_contact_authentication')
+    print(f'{message.contact.phone_number=}')
     phone_number = f'{message.contact.phone_number}'
 
     client_phones = await sync_to_async(ClientPhone.objects.filter)(phone_number=phone_number,
