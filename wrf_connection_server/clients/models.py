@@ -13,7 +13,7 @@ class Client(models.Model):
     def __str__(self):
         return f'{self.name}'
 
-    uuid = models.UUIDField(verbose_name='UUID сотрудника')
+    uuid = models.UUIDField(verbose_name='UUID сотрудника', default=uuid.uuid4)
     name = models.CharField(max_length=200, verbose_name='Имя сотрудника')
     organization_unit = models.ForeignKey(OrganizationUnit, on_delete=models.CASCADE, related_name='client',
                                           verbose_name='Торговая точка')
