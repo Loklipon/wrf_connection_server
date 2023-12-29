@@ -132,7 +132,7 @@ async def get_message(message: Message):
             print(e)
             client_contact.terminal_to_send = None
             await sync_to_async(client_contact.save)()
-            await message.answer('Ты хуйню написал')
+            await message.answer('Данная точка неактивна')
 
 
 @dp.callback_query()
