@@ -34,6 +34,12 @@ def create_contact_keyboard():
     return keyboard
 
 
+def create_send_message_keyboard():
+    buttons = [[KeyboardButton(text='Отправить сообщение', request_contact=True)]]
+    keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+    return keyboard
+
+
 @dp.message(CommandStart())
 async def command_start_handler(message: Message):
     await message.answer(
@@ -76,7 +82,7 @@ async def check_contact_authentication(message):
                                                                     telegram_chat_id__isnull=True)
     if client_phone := await sync_to_async(client_phones.first)():
         await message.answer('Вы успешно авторизовались',
-                             reply_markup=ReplyKeyboardRemove())
+                             reply_markup=create_send_message_keyboard())
         client_phone.telegram_chat_id = message.chat.id
         await sync_to_async(client_phone.save)()
         return
@@ -85,13 +91,27 @@ async def check_contact_authentication(message):
                                                                                     telegram_chat_id=message.chat.id)
     if await sync_to_async(client_phones_with_tg_contact.first)():
         await message.answer('Вы уже авторизовывались ранее',
-                             reply_markup=ReplyKeyboardRemove())
+                             reply_markup=create_send_message_keyboard())
     else:
         await message.answer('Доступ запрещен')
 
 
 @dp.message()
 async def get_message(message: Message):
+
+    if message.text == 'Отправить сообщение':
+        qs = await sync_to_async(OrganizationUnit.objects.filter)(
+            client__phone__telegram_chat_id=message.chat.id)
+        organization_unit = await sync_to_async(qs.first)()
+        split_terminals_list = json.loads(organization_unit.terminals_name_list)
+        print(f'{split_terminals_list=}')
+        terminals_dict = json.loads(organization_unit.terminals_dict)
+        print(f'{terminals_dict=}')
+        keyboard = create_terminals_keyboard(split_terminals_list,
+                                             terminals_dict)
+        await message.answer('Выберите, куда вы хотели бы написать',
+                             reply_markup=keyboard)
+
     if isinstance(message.contact, Contact):
         await check_contact_authentication(message)
         return
@@ -114,18 +134,6 @@ async def get_message(message: Message):
             print(e)
             client_contact.terminal_to_send = None
             await sync_to_async(client_contact.save)()
-    else:
-        qs = await sync_to_async(OrganizationUnit.objects.filter)(
-            client__phone__telegram_chat_id=message.chat.id)
-        organization_unit = await sync_to_async(qs.first)()
-        split_terminals_list = json.loads(organization_unit.terminals_name_list)
-        print(f'{split_terminals_list=}')
-        terminals_dict = json.loads(organization_unit.terminals_dict)
-        print(f'{terminals_dict=}')
-        keyboard = create_terminals_keyboard(split_terminals_list,
-                                             terminals_dict)
-        await message.answer('Выберите, куда вы хотели бы написать',
-                             reply_markup=keyboard)
 
 
 @dp.callback_query()
