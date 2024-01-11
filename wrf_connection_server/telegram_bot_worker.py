@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import uuid
 
 import django
 from aiogram import Bot, Dispatcher, types
@@ -16,7 +17,7 @@ from channels.layers import get_channel_layer
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wrf_connection_server.settings')
 django.setup()
 
-from organization.models import OrganizationUnit, Terminal
+from organization.models import OrganizationUnit, TerminalGroup, Organization, Terminal
 from bot.models import TelegramBot
 from clients.models import ClientPhone
 
@@ -40,12 +41,12 @@ def create_send_message_keyboard():
     return keyboard
 
 
-@dp.message(CommandStart())
-async def command_start_handler(message: Message):
-    await message.answer(
-        'Для дальнейшей работы необходимо отправить свой номер телефона',
-        reply_markup=create_contact_keyboard()
-    )
+def create_org_units_keyboard(org_units_names, org_units_name_uuid_dict):
+    for i, element in enumerate(org_units_names):
+        element[0] = InlineKeyboardButton(text=element[0],
+                                          callback_data=org_units_name_uuid_dict[element[0]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=org_units_names)
+    return keyboard
 
 
 def create_terminals_keyboard(split_terminals_list, terminals_dict):
@@ -57,29 +58,47 @@ def create_terminals_keyboard(split_terminals_list, terminals_dict):
     return keyboard
 
 
-async def send_message_to_iiko_front(client_contact, message):
-    terminal = await sync_to_async(Terminal.objects.get)(uuid=client_contact.terminal_to_send)
-    channel_name = terminal.channel_name
-    channel_layer = get_channel_layer()
-    await channel_layer.send(
-        channel_name,
-        {
-            'type': 'send.message',
-            'params': {
-                'text': message.text
-            },
-            'tg_chat_id': message.chat.id
-        }
+@dp.message(CommandStart())
+async def command_start_handler(message: Message):
+    await message.answer(
+        'Для дальнейшей работы необходимо отправить свой номер телефона',
+        reply_markup=create_contact_keyboard()
     )
-    client_contact.terminal_to_send = None
+
+
+async def send_message_to_iiko_front(client_contact, message):
+    terminals = await sync_to_async(Terminal.objects.filter)(
+        terminal_group__organization_unit__uuid=client_contact.org_unit_to_send,
+        channel_name__isnull=False)
+    body = {
+        'id': str(uuid.uuid4()),
+        'type': 'send.message',
+        'params': {
+            'text': message.text
+        },
+        'tg_chat_id': message.chat.id,
+    }
+
+    async for terminal in terminals:
+        body['terminal'] = str(terminal.uuid)
+        try:
+            channel_name = terminal.channel_name
+            channel_layer = get_channel_layer()
+            await channel_layer.send(
+                channel_name,
+                body
+            )
+        except Exception as e:
+            print(e)
+        finally:
+            continue
+
+    client_contact.org_unit_to_send = None
     await sync_to_async(client_contact.save)()
 
 
 async def check_contact_authentication(message):
-    print('check_contact_authentication')
-    print(f'{message.contact.phone_number=}')
-    phone_number = f'+{message.contact.phone_number.replace("+","")}'
-
+    phone_number = f'+{message.contact.phone_number.replace("+", "")}'
     client_phones = await sync_to_async(ClientPhone.objects.filter)(phone_number=phone_number,
                                                                     telegram_chat_id__isnull=True)
     if client_phone := await sync_to_async(client_phones.first)():
@@ -92,56 +111,72 @@ async def check_contact_authentication(message):
     client_phones_with_tg_contact = await sync_to_async(ClientPhone.objects.filter)(phone_number=phone_number,
                                                                                     telegram_chat_id=message.chat.id)
     if await sync_to_async(client_phones_with_tg_contact.first)():
-        await message.answer('Вы уже авторизовывались ранее',
+        await message.answer('Вы уже авторизовались ранее',
                              reply_markup=create_send_message_keyboard())
     else:
         await message.answer('Доступ запрещен')
 
 
+def get_organization_units_list(message):
+    org_units = OrganizationUnit.objects.filter(
+        client__phone__telegram_chat_id=message.chat.id).values_list('name', flat=True).distinct()
+    org_units_list = list(org_units)
+    for i, element in enumerate(org_units_list):
+        org_units_list[i] = list()
+        org_units_list[i].append(element)
+    return org_units_list
+
+
 @dp.message()
 async def get_message(message: Message):
-
-    if message.text == 'Отправить сообщение':
-        qs = await sync_to_async(OrganizationUnit.objects.filter)(
-            client__phone__telegram_chat_id=message.chat.id)
-        organization_unit = await sync_to_async(qs.first)()
-        split_terminals_list = json.loads(organization_unit.terminals_name_list)
-        terminals_dict = json.loads(organization_unit.terminals_dict)
-        keyboard = create_terminals_keyboard(split_terminals_list,
-                                             terminals_dict)
-        await message.answer('Выберите, куда вы хотели бы написать',
-                             reply_markup=keyboard)
 
     if isinstance(message.contact, Contact):
         await check_contact_authentication(message)
         return
-    client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
-                                                                    client__send_message=True)
+
+    client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id, client__send_message=True)
     client_phone = await sync_to_async(client_phones.first)()
     if not client_phone:
         await message.answer('Доступ запрещен')
         return
 
-    client_contacts = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
-                                                                      client__send_message=True,
-                                                                      terminal_to_send__isnull=False)
-    client_contact = await sync_to_async(client_contacts.first)()
-    if client_contact:
-        print('send_message_to_iiko_front')
-        try:
-            await send_message_to_iiko_front(client_contact, message)
-        except Exception as e:
-            print(e)
-            client_contact.terminal_to_send = None
-            await sync_to_async(client_contact.save)()
-            await message.answer('Данная точка неактивна')
+    if message.text == 'Отправить сообщение':
+
+        org_units_list = await sync_to_async(get_organization_units_list)(message)
+        if len(org_units_list) == 0:
+            await message.answer('У вас нет доступных торговых точек')
+            return
+
+        organizations = await sync_to_async(Organization.objects.filter)()
+        if organization := await sync_to_async(organizations.first)():
+
+            if len(org_units_list) == 1:
+                client_phone.org_unit_to_send = organization.organization_units_dict[org_units_list[0][0]]
+                await sync_to_async(client_phone.save)()
+                await message.answer('Напишите ваше сообщение')
+                return
+
+            keyboard = create_org_units_keyboard(org_units_list, organization.organization_units_dict)
+            await message.answer('Выберите, куда вы хотели бы написать',
+                                 reply_markup=keyboard)
+            return
+
+    client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
+                                                                    client__send_message=True,
+                                                                    org_unit_to_send__isnull=False)
+    client_phone = await sync_to_async(client_phones.first)()
+    if not client_phone:
+        await message.answer('Нет ни одной выбранной торговой точки')
+        return
+
+    await send_message_to_iiko_front(client_phone, message)
 
 
 @dp.callback_query()
 async def get_terminal(callback: types.CallbackQuery):
     phone_clients = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=callback.message.chat.id)
     phone_client = await sync_to_async(phone_clients.first)()
-    phone_client.terminal_to_send = callback.data
+    phone_client.org_unit_to_send = callback.data
     await sync_to_async(phone_client.save)()
     await callback.message.answer('Напишите ваше сообщение')
 

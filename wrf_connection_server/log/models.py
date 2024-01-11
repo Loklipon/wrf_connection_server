@@ -32,3 +32,5 @@ class WsLog(models.Model):
     response = models.JSONField(null=True)
     time = models.DateTimeField(auto_now_add=True, verbose_name='Время')
     method = models.CharField(max_length=200, null=True, verbose_name='Метод')
+    terminal = models.UUIDField(verbose_name='UUID терминала', null=True)
+    status = models.BooleanField(verbose_name='Статус доставки сообщения', default=False)

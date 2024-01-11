@@ -15,10 +15,10 @@ class Client(models.Model):
 
     uuid = models.UUIDField(verbose_name='UUID сотрудника', blank=True, default=uuid.uuid4)
     name = models.CharField(max_length=200, verbose_name='Имя сотрудника')
-    organization_unit = models.ForeignKey(OrganizationUnit, on_delete=models.CASCADE, related_name='client',
-                                          verbose_name='Торговая точка')
+    organization_unit = models.ManyToManyField(OrganizationUnit, related_name='client',
+                                               verbose_name='Торговая точка', blank=True)
     send_message = models.BooleanField(default=False, verbose_name='Может отправлять сообщения')
-    get_message = models.BooleanField(default=False, verbose_name='Может получать сообщения')
+    # get_message = models.BooleanField(default=False, verbose_name='Может получать сообщения')
 
 
 class ClientPhone(models.Model):
@@ -34,5 +34,5 @@ class ClientPhone(models.Model):
     phone_number = models.CharField(max_length=200, verbose_name='Номер телефона сотрудника')
     telegram_chat_id = models.CharField(max_length=200, null=True, blank=True,
                                         verbose_name='Telegram chat ID')
-    terminal_to_send = models.CharField(max_length=200, null=True, blank=True,
-                                        verbose_name='UUID терминала для отправки сообщения')
+    org_unit_to_send = models.CharField(max_length=200, null=True, blank=True,
+                                        verbose_name='UUID торговой точки для отправки сообщения')
