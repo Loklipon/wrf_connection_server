@@ -16,7 +16,7 @@ class Organization(models.Model):
     iiko_server_password = models.CharField(max_length=200, null=True, blank=True, verbose_name='Пароль')
     iiko_url_server = models.CharField(max_length=200, null=True, blank=True, verbose_name='URL')
     iiko_port_server = models.CharField(max_length=200, null=True, blank=True, verbose_name='Порт')
-    # tg_bot_token = models.CharField(max_length=200, null=True, blank=True, verbose_name='Токен Телеграм-бота')
+    organization_units_dict = models.JSONField(null=True, blank=True)
 
 
 class OrganizationUnit(models.Model):
@@ -30,8 +30,21 @@ class OrganizationUnit(models.Model):
     uuid = models.UUIDField(verbose_name='UUID торговой точки')
     name = models.CharField(max_length=200, verbose_name='Название торговой точки')
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, verbose_name='Организация')
-    terminals_name_list = models.JSONField(null=True)
-    terminals_dict = models.JSONField(null=True)
+
+
+class TerminalGroup(models.Model):
+
+    class Meta:
+        verbose_name = 'Терминальная группа'
+        verbose_name_plural = 'Терминальные группы'
+
+    def __str__(self):
+        return f'{self.name}'
+
+    uuid = models.UUIDField(verbose_name='UUID терминальной группы')
+    name = models.CharField(max_length=200, verbose_name='Название терминальной группы')
+    organization_unit = models.ForeignKey(OrganizationUnit, on_delete=models.CASCADE, related_name='terminalgroup',
+                                          verbose_name='Торговая точка')
 
 
 class Terminal(models.Model):
@@ -45,7 +58,7 @@ class Terminal(models.Model):
 
     uuid = models.UUIDField(verbose_name='UUID терминала')
     name = models.CharField(max_length=200, verbose_name='Название терминала')
-    organization_unit = models.ForeignKey(OrganizationUnit, on_delete=models.CASCADE, related_name='terminal',
-                                          verbose_name='Торговая точка')
-    channel_name = models.CharField(max_length=200, null=True)
+    channel_name = models.CharField(max_length=200, null=True, blank=True)
     plugin_online = models.BooleanField(default=False, verbose_name='Плагин online')
+    terminal_group = models.ForeignKey(TerminalGroup, on_delete=models.CASCADE, related_name='terminal',
+                                       verbose_name='Терминальная группа')

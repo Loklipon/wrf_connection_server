@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 
 from organization.services import (get_organization_units_data_from_transport,
-                                   get_terminals_data_from_transport, create_terminals_data)
+                                   get_terminals_data_from_transport, create_organization_units_dict)
 
 
 class Command(BaseCommand):
@@ -10,6 +10,6 @@ class Command(BaseCommand):
 
         get_organization_units_data_from_transport()
         get_terminals_data_from_transport()
-        create_terminals_data()
+        create_organization_units_dict()
 
 

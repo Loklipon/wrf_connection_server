@@ -10,4 +10,5 @@ class HttpLogAdmin(admin.ModelAdmin):
 
 @admin.register(WsLog)
 class WsLogAdmin(admin.ModelAdmin):
-    list_display = ('correlation_id', 'telegram_chat_id', 'time', 'method')
+    list_display = ('correlation_id', 'telegram_chat_id', 'time', 'method',
+                    'terminal', 'status')
