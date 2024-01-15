@@ -11,7 +11,7 @@ from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, ReplyKey
 from aiogram.types.contact import Contact
 from aiogram.types.inline_keyboard_button import InlineKeyboardButton
 from aiogram.types.inline_keyboard_markup import InlineKeyboardMarkup
-from asgiref.sync import sync_to_async
+from asgiref.sync import sync_to_async, async_to_sync
 from channels.layers import get_channel_layer
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wrf_connection_server.settings')
@@ -66,10 +66,9 @@ async def command_start_handler(message: Message):
     )
 
 
-async def send_message_to_iiko_front(client_contact, message):
-    terminals = await sync_to_async(Terminal.objects.filter)(
-        terminal_group__organization_unit__uuid=client_contact.org_unit_to_send,
-        channel_name__isnull=False)
+def send_message_to_iiko_front(client_contact, message):
+    terminals = Terminal.objects.filter(terminal_group__organization_unit__uuid=client_contact.org_unit_to_send,
+                                        channel_name__isnull=False)
     body = {
         'id': str(uuid.uuid4()),
         'type': 'send.message',
@@ -78,13 +77,12 @@ async def send_message_to_iiko_front(client_contact, message):
         },
         'tg_chat_id': message.chat.id,
     }
-
-    async for terminal in terminals:
+    for terminal in terminals:
         body['terminal'] = str(terminal.uuid)
         try:
             channel_name = terminal.channel_name
             channel_layer = get_channel_layer()
-            await channel_layer.send(
+            async_to_sync(channel_layer.send)(
                 channel_name,
                 body
             )
@@ -92,9 +90,6 @@ async def send_message_to_iiko_front(client_contact, message):
             print(e)
         finally:
             continue
-
-    client_contact.org_unit_to_send = None
-    await sync_to_async(client_contact.save)()
 
 
 async def check_contact_authentication(message):
@@ -169,7 +164,7 @@ async def get_message(message: Message):
         await message.answer('Нет ни одной выбранной торговой точки')
         return
 
-    await send_message_to_iiko_front(client_phone, message)
+    await sync_to_async(send_message_to_iiko_front)(client_phone, message)
 
 
 @dp.callback_query()
