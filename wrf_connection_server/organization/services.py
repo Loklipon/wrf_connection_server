@@ -92,3 +92,9 @@ def create_organization_units_dict():
             org_unit_dict[f'{org_unit.name}'] = f'{org_unit.uuid}'
         organization.organization_units_dict = org_unit_dict
         organization.save()
+
+
+def load_organization_data():
+    get_organization_units_data_from_transport()
+    get_terminals_data_from_transport()
+    create_organization_units_dict()
