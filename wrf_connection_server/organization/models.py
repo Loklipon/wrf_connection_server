@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -17,6 +18,11 @@ class Organization(models.Model):
     iiko_url_server = models.CharField(max_length=200, null=True, blank=True, verbose_name='URL')
     iiko_port_server = models.CharField(max_length=200, null=True, blank=True, verbose_name='Порт')
     organization_units_dict = models.JSONField(null=True, blank=True)
+
+    def clean(self, *args, **kwargs):
+        if not self.pk and Organization.objects.exists():
+            raise ValidationError('Может быть добавлена только одна организация')
+        return super(Organization, self).save(*args, **kwargs)
 
 
 class OrganizationUnit(models.Model):
