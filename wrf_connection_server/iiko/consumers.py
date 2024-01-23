@@ -1,15 +1,12 @@
 import json
 
-import uuid
-
 from bot.models import TelegramBot
 from aiogram import Bot
 from channels_jsonrpc import AsyncJsonRpcWebsocketConsumer
 from asgiref.sync import sync_to_async
 
-from clients.models import Client, ClientPhone
 from log.models import WsLog
-from organization.models import OrganizationUnit, TerminalGroup, Terminal
+from organization.models import TerminalGroup, Terminal
 
 
 class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
@@ -68,10 +65,12 @@ class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
                         telegram_bot = Bot(token=telegram_bot_data.token)
                         await telegram_bot.send_message(
                             chat_id=ws_log.telegram_chat_id,
-                            text='Сообщение успешно отправлено')
+                            text='Сообщение успешно доставлено')
                     return 'OK'
 
                 else:
+                    ws_log.status = False
+                    await sync_to_async(ws_log.save)()
                     qs_1 = await sync_to_async(WsLog.objects.filter)(correlation_id=content['id'],
                                                                      response__isnull=False,
                                                                      status=False)
@@ -83,7 +82,7 @@ class IikoFrontConsumer(AsyncJsonRpcWebsocketConsumer):
                         telegram_bot = Bot(token=telegram_bot_data.token)
                         await telegram_bot.send_message(
                             chat_id=ws_log.telegram_chat_id,
-                            text='Сообщение не было отправлено')
+                            text='Сообщение не было доставлено')
                     return 'OK'
 
         res = await super(IikoFrontConsumer, self).receive_json(content)

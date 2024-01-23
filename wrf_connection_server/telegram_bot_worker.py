@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import uuid
 
@@ -7,7 +6,7 @@ import django
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.filters import CommandStart
-from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from aiogram.types import Message, KeyboardButton, ReplyKeyboardMarkup
 from aiogram.types.contact import Contact
 from aiogram.types.inline_keyboard_button import InlineKeyboardButton
 from aiogram.types.inline_keyboard_markup import InlineKeyboardMarkup
@@ -17,7 +16,7 @@ from channels.layers import get_channel_layer
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wrf_connection_server.settings')
 django.setup()
 
-from organization.models import OrganizationUnit, TerminalGroup, Organization, Terminal
+from organization.models import OrganizationUnit, Organization, Terminal
 from bot.models import TelegramBot
 from clients.models import ClientPhone
 
@@ -35,16 +34,26 @@ def create_contact_keyboard():
     return keyboard
 
 
-def create_send_message_keyboard():
-    buttons = [[KeyboardButton(text='Отправить сообщение')]]
+def create_settings_keyboard():
+    buttons = [[KeyboardButton(text='Настройки')]]
     keyboard = ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
     return keyboard
 
 
-def create_org_units_keyboard(org_units_names, org_units_name_uuid_dict):
+def create_org_units_keyboard(org_units_names, org_units_name_uuid_dict, terminal_uuid):
+
+    if terminal_uuid:
+        org_name = OrganizationUnit.objects.filter(uuid=terminal_uuid).first().name
+    else:
+        org_name = None
+
     for i, element in enumerate(org_units_names):
-        element[0] = InlineKeyboardButton(text=element[0],
-                                          callback_data=org_units_name_uuid_dict[element[0]])
+        if org_name and element[0] == org_name:
+            element[0] = InlineKeyboardButton(text=f'{org_name} \U00002705',
+                                              callback_data=org_units_name_uuid_dict[element[0]])
+        else:
+            element[0] = InlineKeyboardButton(text=element[0],
+                                              callback_data=org_units_name_uuid_dict[element[0]])
     keyboard = InlineKeyboardMarkup(inline_keyboard=org_units_names)
     return keyboard
 
@@ -97,8 +106,9 @@ async def check_contact_authentication(message):
     client_phones = await sync_to_async(ClientPhone.objects.filter)(phone_number=phone_number,
                                                                     telegram_chat_id__isnull=True)
     if client_phone := await sync_to_async(client_phones.first)():
-        await message.answer('Вы успешно авторизовались',
-                             reply_markup=create_send_message_keyboard())
+        await message.answer('Вы успешно авторизовались. '
+                             'Для выбора торговой точки нажмите кнопку "Настройки".',
+                             reply_markup=create_settings_keyboard())
         client_phone.telegram_chat_id = message.chat.id
         await sync_to_async(client_phone.save)()
         return
@@ -107,9 +117,10 @@ async def check_contact_authentication(message):
                                                                                     telegram_chat_id=message.chat.id)
     if await sync_to_async(client_phones_with_tg_contact.first)():
         await message.answer('Вы уже авторизовались ранее',
-                             reply_markup=create_send_message_keyboard())
+                             reply_markup=create_settings_keyboard())
     else:
-        await message.answer('Доступ запрещен')
+        await message.answer('Доступ запрещен.'
+                             'Попросите администратора добавить ваш номер телефона.')
 
 
 def get_organization_units_list(message):
@@ -129,17 +140,20 @@ async def get_message(message: Message):
         await check_contact_authentication(message)
         return
 
-    client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id, client__send_message=True)
+    client_phones = await sync_to_async(ClientPhone.objects.filter)(telegram_chat_id=message.chat.id,
+                                                                    client__send_message=True)
     client_phone = await sync_to_async(client_phones.first)()
     if not client_phone:
-        await message.answer('Доступ запрещен')
+        await message.answer('Вы не можете отправлять сообщения на торговые точки. '
+                             'Обратитесь к вашему администратору.')
         return
 
-    if message.text == 'Отправить сообщение':
+    if message.text == 'Настройки':
 
         org_units_list = await sync_to_async(get_organization_units_list)(message)
         if len(org_units_list) == 0:
-            await message.answer('У вас нет доступных торговых точек')
+            await message.answer('У вас нет доступных торговых точек.'
+                                 'Попросите администратора добавить их.')
             return
 
         organizations = await sync_to_async(Organization.objects.filter)()
@@ -151,7 +165,14 @@ async def get_message(message: Message):
                 await message.answer('Напишите ваше сообщение')
                 return
 
-            keyboard = create_org_units_keyboard(org_units_list, organization.organization_units_dict)
+            if client_phone.org_unit_to_send:
+                keyboard = await sync_to_async(create_org_units_keyboard)(org_units_list,
+                                                                          organization.organization_units_dict,
+                                                                          client_phone.org_unit_to_send)
+            else:
+                keyboard = await sync_to_async(create_org_units_keyboard)(org_units_list,
+                                                                          organization.organization_units_dict,
+                                                                          None)
             await message.answer('Выберите, куда вы хотели бы написать',
                                  reply_markup=keyboard)
             return
@@ -164,7 +185,20 @@ async def get_message(message: Message):
         await message.answer('Нет ни одной выбранной торговой точки')
         return
 
-    await sync_to_async(send_message_to_iiko_front)(client_phone, message)
+    terminals = await sync_to_async(
+        Terminal.objects.filter)(terminal_group__organization_unit__uuid=client_phone.org_unit_to_send,
+                                 plugin_online=True)
+    terminal = await sync_to_async(terminals.first)()
+    if terminal:
+        org_units = await sync_to_async(OrganizationUnit.objects.filter)(uuid=client_phone.org_unit_to_send)
+        org_unit = await sync_to_async(org_units.first)()
+        org_unit_name = org_unit.name
+        await message.answer(f'Ваше сообщение отправлено на торговую точку {org_unit_name}')
+        await sync_to_async(send_message_to_iiko_front)(client_phone, message)
+    else:
+        await message.answer('Не удалось отправить сообщение. '
+                             'У данной торговой точки нет ни одного терминала онлайн')
+        return
 
 
 @dp.callback_query()
