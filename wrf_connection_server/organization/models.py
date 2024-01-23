@@ -10,8 +10,8 @@ class Organization(models.Model):
     def __str__(self):
         return f'{self.name}'
 
-    name = models.CharField(max_length=200, null=True, blank=True, verbose_name='Название организации')
-    api_key = models.CharField(max_length=200, null=True, blank=True, verbose_name='API ключ')
+    name = models.CharField(max_length=200, null=True, verbose_name='Название организации')
+    api_key = models.CharField(max_length=200, null=True, verbose_name='API ключ')
     iiko_server_login = models.CharField(max_length=200, null=True, blank=True, verbose_name='Логин')
     iiko_server_password = models.CharField(max_length=200, null=True, blank=True, verbose_name='Пароль')
     iiko_url_server = models.CharField(max_length=200, null=True, blank=True, verbose_name='URL')

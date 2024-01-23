@@ -15,7 +15,7 @@ class IikoTransport:
         headers = {'Content-Type': 'application/json'}
         body = {'apiLogin': api_key}
         body = json.dumps(body)
-        response = requests.post(url, data=body, headers=headers)
+        response = requests.post(url, data=body, headers=headers, timeout=5)
         add_log(response, body)
         return json.loads(response.text)['token']
 
@@ -25,7 +25,7 @@ class IikoTransport:
                 'returnAdditionalInfo': False,
                 'includeDisabled': False}
         body = json.dumps(body)
-        response = requests.post(url, headers=self.headers, data=body)
+        response = requests.post(url, headers=self.headers, data=body, timeout=5)
         add_log(response, body)
         return response
 
@@ -35,7 +35,7 @@ class IikoTransport:
                 'includeDisabled': True,
                 'returnExternalData': []}
         body = json.dumps(body)
-        response = requests.post(url, headers=self.headers, data=body)
+        response = requests.post(url, headers=self.headers, data=body, timeout=5)
         add_log(response, body)
         return response
 
