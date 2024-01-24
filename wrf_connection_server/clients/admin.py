@@ -10,7 +10,7 @@ class PhoneInLine(admin.TabularInline):
 
 
 @admin.register(Client)
-class EmployeeAdmin(admin.ModelAdmin):
+class ClientAdmin(admin.ModelAdmin):
     list_display = ('name', 'get_organization_units', 'send_message')
     inlines = (PhoneInLine,)
     filter_horizontal = ('organization_unit',)
@@ -20,3 +20,7 @@ class EmployeeAdmin(admin.ModelAdmin):
         return ', '.join([org_unit.name for org_unit in obj.organization_unit.all()])
 
     get_organization_units.short_description = 'Торговые точки'
+
+    def save_model(self, request, obj, form, change):
+        ClientPhone.objects.filter(client=obj).update(org_unit_to_send=None)
+        super().save_model(request, obj, form, change)

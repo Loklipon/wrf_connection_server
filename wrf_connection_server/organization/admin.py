@@ -14,11 +14,8 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_display = ('name', 'api_key', 'iiko_server_login',
                     'iiko_server_password', 'iiko_url_server', 'iiko_port_server')
     readonly_fields = ('organization_units_dict',)
-
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        if Organization.objects.filter(pk=object_id):
-            self.change_form_template = 'admin/change_view_organization.html'
-        return super().change_view(request, object_id, form_url, extra_context=extra_context)
+    add_form_template = 'admin/change_form.html'
+    change_form_template = 'admin/change_view_organization.html'
 
     def response_change(self, request, obj):
         if '_load-org-data' in request.POST:
