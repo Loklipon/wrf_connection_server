@@ -147,10 +147,24 @@ async def check_contact_authentication(message):
 
     client_phones_with_tg_contact = await sync_to_async(ClientPhone.objects.filter)(phone_number=phone_number,
                                                                                     telegram_chat_id=message.chat.id)
-    client_obj = await sync_to_async(client_phones_with_tg_contact.first)()
-    if client_obj:
+    client_phone_obj = await sync_to_async(client_phones_with_tg_contact.first)()
+
+    if client_phone_obj:
+
+        client_objs = await sync_to_async(Client.objects.filter)(phone=client_phone_obj)
+        client_obj = await sync_to_async(client_objs.first)()
+        if not client_obj.send_message:
+            await message.answer(f'Вы уже авторизовывались ранее.\n'
+                                 f'Вы не можете отправлять сообщения на торговые точки.\n'
+                                 f'Для дальнейшей работы отправьте любое сообщение в этот чат.',
+                                 reply_markup=ReplyKeyboardRemove())
+            return
 
         if len(org_units_list) == 1:
+            organizations = await sync_to_async(Organization.objects.filter)()
+            if organization := await sync_to_async(organizations.first)():
+                client_phone_obj.org_unit_to_send = organization.organization_units_dict[org_units_list[0][0]]
+                await sync_to_async(client_phone_obj.save)()
             await message.answer(f'Вы уже авторизовывались ранее.\n'
                                  f'Для вас доступна торговая точка {org_units_list[0][0]}.\n'
                                  f'Для отправки сообщения на данную торговую точку напишите и отправьте его.',
